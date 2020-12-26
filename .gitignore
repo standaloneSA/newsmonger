@@ -1,0 +1,4 @@
+articles/*
+seen_articles.db
+*pyc
+.*swp

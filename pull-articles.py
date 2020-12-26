@@ -3,6 +3,7 @@
 import feedparser
 import csv
 import sys
+import re
 import os
 import json
 import requests
@@ -139,6 +140,26 @@ def record_article(cur, article, topic):
     ]
     )
   db.commit()
+
+  try:
+    published = re.sub(r'\W+', ':', article.get('published'))
+    title = re.sub(r'\W+', '_', article.get('title'))
+    filename = published.replace(' ', '_') + '_' + title.replace(' ', '_')
+  except TypeError:
+    print("Unable to perform regex replacement on %s" % article.get('title'))
+    filename = str(datetime.datetime.now().timestamp())
+  
+  # Sometimes the summaries get out of hand
+  filename = filename[:100] + ".txt"
+  print("Pulling %s" % article.get('link'))
+  req = requests.get(article.get('link'))
+
+  text = BeautifulSoup(req.text, features="lxml").get_text(strip=True)
+
+  print("Writing file %s/%s/%s" % (drop_path, topic, filename))
+  f = open("%s/%s/%s" % (drop_path, topic, filename), 'a')
+  f.write(text)
+  f.close()
   
 # Eventually may want to use something besides sqlite if 
 # we unify scraping.

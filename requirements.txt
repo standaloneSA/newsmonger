@@ -1,0 +1,11 @@
+backports.functools-lru-cache==1.6.1
+beautifulsoup4
+bs4==0.0.1
+certifi==2020.12.5
+chardet==4.0.0
+feedparser==6.0.2
+idna==2.10
+requests==2.25.1
+sgmllib3k==1.0.0
+soupsieve==1.9.6
+urllib3==1.26.2
