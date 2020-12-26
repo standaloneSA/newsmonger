@@ -32,7 +32,8 @@ CAT_SCHEMA = """
     summary text,
     language text,
     contributors text,
-    publisher text
+    publisher text,
+    stripped_text text
   );
 """
 
@@ -49,10 +50,12 @@ RECENT_SCHEMA = """
     link text,
     date text
   );
+
+  CREATE UNIQUE INDEX idx_links_link on recent_links (link);
 """
 
 def _create_recent_schema(cur):
-  cur.execute(RECENT_SCHEMA)
+  cur.executescript(RECENT_SCHEMA)
   db.commit()
 
 def _check_db_table_exists(cur, table):
@@ -72,7 +75,7 @@ def _create_db_category(cur, topic):
   @param: cur Database cursor
   """
   # the CAT_SCHEMA names the table after the topic
-  cur.execute(CAT_SCHEMA % str(topic))
+  cur.executescript(CAT_SCHEMA % str(topic))
   db.commit()
   
 
@@ -113,14 +116,21 @@ def record_article(cur, article, topic):
 
   # The summaries often have useless html that we don't want or need. 
   summary = BeautifulSoup(article.get('summary'),features="lxml").get_text(strip=True)
+
+  print("Pulling %s" % article.get('link'))
+  req = requests.get(article.get('link'))
+
+  # We're going to do text analysis on the contents of the page, and that's much smaller
+  # than the full html output, so lets save it to the database. 
+  stripped_text = BeautifulSoup(req.text, features="lxml").get_text(strip=True)
   
   # Technically, the topic is still open to injection, but we're pulling that directly out of 
   # a CSV we control, so I think we can consider it secure. The plumbing required to 
   # dynamically pick a table is otherwise annoying. 
   cur.execute("""
-    INSERT INTO "%s" (link, date, title, published, summary, language, contributors, publisher) 
+    INSERT INTO "%s" (link, date, title, published, summary, language, contributors, publisher, stripped_text) 
     VALUES 
-    (?, ?, ?, ?, ?, ?, ?, ?);""" % topic, [ 
+    (?, ?, ?, ?, ?, ?, ?, ?, ?);""" % topic, [ 
       article.get('link'), 
       str(datetime.datetime.now()), 
       article.get('title'), 
@@ -128,7 +138,8 @@ def record_article(cur, article, topic):
       summary, 
       article.get('language'), 
       str(article.get('contributors')), 
-      article.get('publisher')
+      article.get('publisher'),
+      stripped_text,
       ]
     )
   cur.execute("""
@@ -149,16 +160,13 @@ def record_article(cur, article, topic):
     print("Unable to perform regex replacement on %s" % article.get('title'))
     filename = str(datetime.datetime.now().timestamp())
   
-  # Sometimes the summaries get out of hand
+  # Sometimes the summaries get out of hand, so cut it to 100 chars
   filename = filename[:100] + ".txt"
-  print("Pulling %s" % article.get('link'))
-  req = requests.get(article.get('link'))
 
-  text = BeautifulSoup(req.text, features="lxml").get_text(strip=True)
-
+  # We want to write the full html output to the file for posterity
   print("Writing file %s/%s/%s" % (drop_path, topic, filename))
   f = open("%s/%s/%s" % (drop_path, topic, filename), 'a')
-  f.write(text)
+  f.write(req.text)
   f.close()
   
 # Eventually may want to use something besides sqlite if 
