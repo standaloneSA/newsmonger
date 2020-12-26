@@ -2,6 +2,7 @@
 
 import feedparser
 import csv
+import gzip
 import sys
 import re
 import os
@@ -161,13 +162,13 @@ def record_article(cur, article, topic):
     filename = str(datetime.datetime.now().timestamp())
   
   # Sometimes the summaries get out of hand, so cut it to 100 chars
-  filename = filename[:100] + ".txt"
+  filename = filename[:100] + ".txt.gz"
 
   # We want to write the full html output to the file for posterity
   print("Writing file %s/%s/%s" % (drop_path, topic, filename))
   f = open("%s/%s/%s" % (drop_path, topic, filename), 'a')
-  f.write(req.text)
-  f.close()
+  with gzip.open("%s/%s/%s" % (drop_path, topic, filename), "wt") as f:
+    f.write(req.text)
   
 # Eventually may want to use something besides sqlite if 
 # we unify scraping.
