@@ -4,11 +4,14 @@ import feedparser
 import csv
 import sys
 import os
+import json
 import requests
 import sqlite3
 import datetime
+from bs4 import BeautifulSoup
 
 cat_file = 'categories.csv'
+
 drop_path = 'articles'
 article_db = 'seen_articles.db'
 
@@ -101,13 +104,15 @@ def record_article(cur, article, topic):
     Returns: True for success, False for fail
   """
   if _record_exists(cur, article['link']):
-    print("Record exists. Exiting early")
     return False
 
   if not _check_db_table_exists(cur, topic):
     print("Creating %s DB table" % topic)
     _create_db_category(cur, topic)
 
+  # The summaries often have useless html that we don't want or need. 
+  summary = BeautifulSoup(article.get('summary'),features="lxml").get_text(strip=True)
+  
   # Technically, the topic is still open to injection, but we're pulling that directly out of 
   # a CSV we control, so I think we can consider it secure. The plumbing required to 
   # dynamically pick a table is otherwise annoying. 
@@ -119,7 +124,7 @@ def record_article(cur, article, topic):
       str(datetime.datetime.now()), 
       article.get('title'), 
       article.get('published'), 
-      article.get('summary'), 
+      summary, 
       article.get('language'), 
       str(article.get('contributors')), 
       article.get('publisher')
@@ -150,16 +155,24 @@ with open(cat_file) as f:
     _create_recent_schema(cur)
 
   for row in reader:
+    print('-------------')
     if not os.path.isdir(drop_path + '/' + row[1]):
       os.mkdir(drop_path + '/' + row[1])
     rssurl = row[2]
     feed = feedparser.parse(rssurl)
     if feed['bozo']:
-      print('Warning: This feed is malformed and may misbehave')
-    print('-------------')
-    print(f"Found {len(feed['items'])} items in {feed['channel']['subtitle']}")
+      print('Warning: This feed is malformed and may misbehave: %s' % row[2])
+      print('Skipping.')
+      continue
+    try:
+      print(f"Found {len(feed['items'])} items in {feed['feed']['title']} ({feed['feed']['subtitle']})")
+    except KeyError as err:
+      print("Line: %s" % row)
+      print("Error: %s" % str(err))
+      print("Found this:")
+      print(str(feed))
+      print(json.dumps(feed, indent=4, sort_keys=True))
+      sys.exit(1)
     for item in feed['items']:
       record_article(cur, item, row[1])
-cur.execute('select sql from sqlite_master where type = "table";')
-print(cur.fetchmany())
 cur.close()
