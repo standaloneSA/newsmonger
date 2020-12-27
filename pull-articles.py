@@ -116,14 +116,16 @@ def record_article(cur, article, topic):
     _create_db_category(cur, topic)
 
   # The summaries often have useless html that we don't want or need. 
-  summary = BeautifulSoup(article.get('summary'),features="lxml").get_text(strip=True)
+  # stripped_strings is a list of the individual strings. We want all of them, but 
+  # combined, and with a single space separating them so they aren't all jammed together
+  summary = " ".join(BeautifulSoup(article.get('summary'),features="lxml").stripped_strings)
 
   print("Pulling %s" % article.get('link'))
   req = requests.get(article.get('link'))
 
   # We're going to do text analysis on the contents of the page, and that's much smaller
   # than the full html output, so lets save it to the database. 
-  stripped_text = BeautifulSoup(req.text, features="lxml").get_text(strip=True)
+  stripped_text = " ".join(BeautifulSoup(req.text, features="lxml").stripped_strings)
   
   # Technically, the topic is still open to injection, but we're pulling that directly out of 
   # a CSV we control, so I think we can consider it secure. The plumbing required to 
